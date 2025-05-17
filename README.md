@@ -1,1 +1,1 @@
-![Descripción de la imagen](img/image.png)
+![Ejemplo de Grafico](img/image.png)
