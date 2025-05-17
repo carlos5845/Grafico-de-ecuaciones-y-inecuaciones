@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Graficador Simple</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .container {
+        background-color: #f9f9f9;
+        padding: 20px;
+        border-radius: 5px;
+      }
+      #plot {
+        width: 100%;
+        height: 400px;
+      }
+      textarea {
+        width: 100%;
+        height: 80px;
+        margin: 10px 0;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Graficador de Ecuaciones e Inecuaciones</h2>
+      <p>Ingresa expresiones (una por línea):</p>
+      <p>
+        Ejemplos: <code>y = 2x + 1</code>, <code>2x + 3y = 6</code>,
+        <code>x + y <= 5</code>
+      </p>
+
+      <textarea
+        id="input"
+        placeholder="Escribe aquí tus ecuaciones o inecuaciones..."
+      >
+y = 2x + 1
+x + y <= 5</textarea
+      >
+      <br />
+      <button onclick="graficar()">Graficar</button>
+      <div id="plot"></div>
+    </div>
+
+    <script>
+      function graficar() {
+        // Obtener las expresiones del textarea
+        const lineas = document.getElementById("input").value.split("\n");
+        const trazos = [];
+
+        // Crear puntos en el eje X
+        const x = [];
+        for (let i = -10; i <= 10; i += 0.1) {
+          x.push(i);
+        }
+
+        // Procesar cada línea
+        lineas.forEach((linea) => {
+          if (!linea.trim()) return; // Ignorar líneas vacías
+
+          // Determinar si es ecuación o inecuación y el tipo de operador
+          let operador = "";
+          if (linea.includes("<=")) operador = "<=";
+          else if (linea.includes(">=")) operador = ">=";
+          else if (linea.includes("<")) operador = "<";
+          else if (linea.includes(">")) operador = ">";
+          else if (linea.includes("=")) operador = "=";
+
+          if (!operador) return; // Si no hay operador, ignorar
+
+          // Dividir la expresión en partes (izquierda y derecha del operador)
+          const partes = linea.split(operador);
+          if (partes.length !== 2) return;
+
+          let izquierda = partes[0].trim();
+          let derecha = partes[1].trim();
+
+          // Casos especiales
+          if (izquierda === "y") {
+            // Forma: y = mx + b
+            const expresion = derecha;
+            const y = calcularY(expresion, x);
+
+            if (y) {
+              trazos.push({
+                x: x,
+                y: y,
+                type: "scatter",
+                mode: "lines",
+                name: linea,
+                line: { dash: operador === "=" ? "solid" : "dash" },
+              });
+            }
+          } else if (izquierda === "x") {
+            // Forma: x = k
+            const valor = parseFloat(derecha);
+            if (!isNaN(valor)) {
+              trazos.push({
+                x: [valor, valor],
+                y: [-10, 10],
+                type: "scatter",
+                mode: "lines",
+                name: linea,
+                line: { dash: operador === "=" ? "solid" : "dash" },
+              });
+            }
+          } else {
+            // Forma general: ax + by = c
+            try {
+              // Mover todo a la izquierda: ax + by - c = 0
+              const ecuacion = izquierda + "-(" + derecha + ")";
+              const y = [];
+
+              for (let xi of x) {
+                // Resolver para y cuando x = xi
+                let expr = ecuacion.replace(/x/g, "(" + xi + ")");
+
+                // Encontrar el coeficiente de y
+                let coefY = 1;
+                const matchY = expr.match(/(-?\d*\.?\d*)y/);
+                if (matchY && matchY[1]) {
+                  coefY =
+                    matchY[1] === "-"
+                      ? -1
+                      : matchY[1] === ""
+                      ? 1
+                      : parseFloat(matchY[1]);
+                }
+
+                // Eliminar el término con y
+                expr = expr.replace(/[-+]?\s*\d*\.?\d*y/g, "");
+
+                // Evaluar la expresión
+                let resultado;
+                try {
+                  resultado = -eval(expr) / coefY;
+                } catch (e) {
+                  resultado = null;
+                }
+
+                y.push(resultado);
+              }
+
+              trazos.push({
+                x: x,
+                y: y,
+                type: "scatter",
+                mode: "lines",
+                name: linea,
+                line: { dash: operador === "=" ? "solid" : "dash" },
+              });
+            } catch (e) {
+              console.error("Error al procesar: " + linea, e);
+            }
+          }
+        });
+
+        // Crear el gráfico
+        Plotly.newPlot("plot", trazos, {
+          title: "Gráfico de ecuaciones e inecuaciones",
+          xaxis: { title: "x", range: [-10, 10] },
+          yaxis: { title: "y", range: [-10, 10] },
+          grid: { rows: 1, columns: 1 },
+        });
+      }
+
+      function calcularY(expresion, valoresX) {
+        try {
+          // Manejar caso y = mx + b
+          let pendiente = 1;
+          let intercepto = 0;
+
+          // Buscar término con x
+          const matchX = expresion.match(/(-?\d*\.?\d*)x/);
+          if (matchX) {
+            const coefStr = matchX[1];
+            pendiente =
+              coefStr === "-" ? -1 : coefStr === "" ? 1 : parseFloat(coefStr);
+            // Eliminar el término con x
+            expresion = expresion.replace(/[-+]?\s*\d*\.?\d*x/g, "");
+          } else if (!expresion.includes("x")) {
+            // Si no hay x, entonces es una línea horizontal y = k
+            pendiente = 0;
+          }
+
+          // El resto debería ser el intercepto
+          const matchNum = expresion.match(/[-+]?\s*\d*\.?\d*/);
+          if (matchNum && matchNum[0]) {
+            intercepto = parseFloat(matchNum[0]) || 0;
+          }
+
+          // Calcular los valores de y
+          return valoresX.map((xi) => pendiente * xi + intercepto);
+        } catch (e) {
+          console.error("Error al calcular y:", e);
+          return null;
+        }
+      }
+
+      // Iniciar con un ejemplo
+      window.onload = graficar;
+    </script>
+  </body>
+</html>
